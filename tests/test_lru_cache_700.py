@@ -17,7 +17,7 @@ class TestLRUCacheHelper7:
     def _get_from_diccionario_expensive_function(self, key):
         raise Exception("This should not happen")
 
-    @lru_cache(used_memory_max_size=30000)
+    @lru_cache(used_memory_max_size=70000)
     def get_from_diccionario_cached(self, key):
         return self._get_from_diccionario_expensive_function(key)
 
