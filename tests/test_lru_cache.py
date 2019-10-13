@@ -31,8 +31,14 @@ def create_fixtures_for_test_7():
     expected_misses1 = 5
     first = _TestFixture(obj1, keySet1, expected_calls1, expected_hits1, expected_misses1)
     #
+    obj2 = TestLRUCacheHelper7()
+    keySet2 = ['1', '2', '3', '4', '1', '2', '3', '4', '5', '6', '7', '1']
+    expected_calls2 = [call('1'), call('2'), call('3'), call('4'), call('5'), call('6'), call('7'), call('1')]
+    expected_hits2 = 4
+    expected_misses2 = 8
+    second = _TestFixture(obj2, keySet2, expected_calls2, expected_hits2, expected_misses2)
     #
-    fixtures = [first]
+    fixtures = [first, second]
     return fixtures
 
 def create_fixtures_for_test_3():
@@ -90,7 +96,6 @@ class TestLRUCache(unittest.TestCase):
             assert expected_hits == cache_info.hits
             assert expected_misses == cache_info.misses
             assert cache_info.maxsize is None
-
 
 if __name__ == '__main__':
     unittest.main()
