@@ -100,6 +100,9 @@ def lru_cache(maxsize=128, typed=False, used_memory_max_size=False):
         root[:] = [root, root, None, None]     # initialize by pointing to self
 
         if used_memory_max_size:
+            def would_produce_overflow(_result):
+                would_take_mem_size = _cache_memory_usage() + sys.getsizeof(_result)
+                return would_take_mem_size >= used_memory_max_size
 
             def wrapper(*args, **kwds):
                 # Size limited caching that tracks accesses by recency
@@ -126,33 +129,35 @@ def lru_cache(maxsize=128, typed=False, used_memory_max_size=False):
                         # update is already done, we need only return the
                         # computed result and update the count of misses.
                         pass
-                    elif full:
-                        # Use the old root to store the new key and result.
-                        oldroot = root
-                        oldroot[KEY] = key
-                        oldroot[RESULT] = result
-                        # Empty the oldest link and make it the new root.
-                        # Keep a reference to the old key and old result to
-                        # prevent their ref counts from going to zero during the
-                        # update. That will prevent potentially arbitrary object
-                        # clean-up code (i.e. __del__) from running while we're
-                        # still adjusting the links.
-                        root = oldroot[NEXT]
-                        oldkey = root[KEY]
-                        oldresult = root[RESULT]
-                        root[KEY] = root[RESULT] = None
-                        # Now update the cache dictionary.
-                        del cache[oldkey]
-                        # Save the potentially reentrant cache[key] assignment
-                        # for last, after the root and links have been put in
-                        # a consistent state.
-                        cache[key] = oldroot
+                    elif full or would_produce_overflow(result) :
+                        if len(cache) > 0:
+                            # Use the old root to store the new key and result.
+                            oldroot = root
+                            oldroot[KEY] = key
+                            oldroot[RESULT] = result
+                            # Empty the oldest link and make it the new root.
+                            # Keep a reference to the old key and old result to
+                            # prevent their ref counts from going to zero during the
+                            # update. That will prevent potentially arbitrary object
+                            # clean-up code (i.e. __del__) from running while we're
+                            # still adjusting the links.
+                            root = oldroot[NEXT]
+                            oldkey = root[KEY]
+                            oldresult = root[RESULT]
+                            root[KEY] = root[RESULT] = None
+                            # Now update the cache dictionary.
+                            del cache[oldkey]
+                            # Save the potentially reentrant cache[key] assignment
+                            # for last, after the root and links have been put in
+                            # a consistent state.
+                            cache[key] = oldroot
+                        full = (_cache_memory_usage() >= used_memory_max_size)
                     else:
                         # Put result in a new link at the front of the queue.
                         last = root[PREV]
                         link = [last, root, key, result]
                         last[NEXT] = root[PREV] = cache[key] = link
-                        full = (_cache_memory_usage() > used_memory_max_size)
+                        full = (_cache_memory_usage() >= used_memory_max_size)
                     misses += 1
                 return result
 
@@ -245,7 +250,10 @@ def lru_cache(maxsize=128, typed=False, used_memory_max_size=False):
         def _cache_memory_usage():
             """Report cache objects total memory usage"""
             with lock:
-                return functools.reduce(lambda a,b : a+b, map(sys.getsizeof, cache.values()))
+                if len(cache) == 0:
+                    return 0
+                memory_usage = functools.reduce(lambda a,b : a+b, map(sys.getsizeof, map(lambda link : link[RESULT], cache.values())))
+                return memory_usage
 
         def cache_clear():
             """Clear the cache and cache statistics"""
